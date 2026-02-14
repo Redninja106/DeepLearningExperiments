@@ -41,7 +41,6 @@ internal class Model
 
             float[] result = Evaluate(x[index]);
             
-            // Check for NaN in output
             if (result.Any(r => float.IsNaN(r) || float.IsInfinity(r)))
             {
                 Console.WriteLine($"NaN/Inf detected in output at step {i}");
@@ -53,17 +52,13 @@ internal class Model
             if (i % 100 == 0)
                 Console.WriteLine($"Step {i}: {loss}");
             
-            // Calculate initial delta: derivative of loss w.r.t. output
-            // For MSE loss: dL/dOutput = 2 * (output - target) / n, simplified to (output - target)
             float[] delta = Vector.Subtract(result, y[index]);
 
-            // Backpropagate through all DeepLayers (skip InputLayer at index 0 and SoftmaxLayer at end)
             for (int j = Layers.Length - 2; j > 0; j--)
             {
                 if (Layers[j] is not DeepLayer layer)
                     continue;
 
-                // Get activations from previous layer
                 float[] activations;
                 if (Layers[j - 1] is DeepLayer deepLayer)
                 {
@@ -71,18 +66,15 @@ internal class Model
                 }
                 else if (Layers[j - 1] is InputLayer)
                 {
-                    activations = x[index]; // Input layer passes through the input
+                    activations = x[index];
                 }
                 else
                 {
                     throw new Exception($"Unknown layer type at index {j - 1}");
                 }
 
-                // Compute gradients
-                // dL/dW = activations^T * delta (outer product)
                 float[,] dw = Matrix.Multiply(activations, delta);
                 
-                // Clip gradients to prevent explosion
                 for (int ii = 0; ii < dw.GetLength(0); ii++)
                 {
                     for (int jj = 0; jj < dw.GetLength(1); jj++)
@@ -91,11 +83,9 @@ internal class Model
                     }
                 }
                 
-                // Update weights: W = W - learning_rate * dW
                 Matrix.Multiply(dw, learningRate, destination: dw);
                 Matrix.Subtract(layer.weights, dw, destination: layer.weights);
                 
-                // Update biases: b = b - learning_rate * delta
                 float[] biasGrad = Vector.Multiply(delta, learningRate);
                 for (int k = 0; k < biasGrad.Length; k++)
                 {
@@ -103,13 +93,11 @@ internal class Model
                 }
                 Vector.Subtract(layer.biases, biasGrad, destination: layer.biases);
 
-                // Propagate delta to previous layer (if not at the first DeepLayer)
                 if (j > 1)
                 {
                     var wt = Matrix.Transpose(layer.weights);
                     float[] prevDelta = Matrix.Multiply(wt, delta);
                     
-                    // Apply activation gradient from the PREVIOUS layer
                     if (Layers[j - 1] is DeepLayer prevDeepLayer)
                     {
                         delta = Vector.Multiply(
@@ -131,8 +119,6 @@ internal class Model
         float sum = 0;
         for (int i = 0; i < actual.Length; i++)
         {
-            // Categorical cross-entropy: -sum(y * log(y_hat))
-            // Add small epsilon to prevent log(0)
             sum += expected[i] * MathF.Log(MathF.Max(actual[i], 1e-7f));
         }
         return -sum;
